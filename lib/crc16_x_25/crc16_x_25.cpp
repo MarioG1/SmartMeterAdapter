@@ -1,3 +1,10 @@
+/**
+ * Functions to calculate crc16 checkusm
+ * All credits to breitbandkatze
+ * http://www.zorc.breitbandkatze.de/crc.html
+ * http://www.zorc.breitbandkatze.de/crctester.c
+ **/
+
 #include "crc16_x_25.h"
 
 #define order 16
