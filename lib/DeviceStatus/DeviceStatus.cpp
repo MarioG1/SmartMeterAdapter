@@ -3,9 +3,15 @@
 #include "..\LEDControl\LEDControl.h"
 #include "DeviceStatus.h" 
 
+/**
+ * Class to use which uses the RBG LED to show the current status of the application
+ **/ 
 DeviceStatus::DeviceStatus(){
 }
 
+/**
+ * Initialize the RBL LED and the "status" LED
+ **/ 
 void DeviceStatus::Init() {
   led.init();
 
@@ -14,6 +20,9 @@ void DeviceStatus::Init() {
   digitalWrite(LED_BUILTIN, HIGH);
 }
 
+/**
+ * Sets the LED to an given status (color)
+ **/ 
 void DeviceStatus::setStatus(int st) {
   switch(st) {
     case READY:
@@ -49,6 +58,10 @@ void DeviceStatus::setStatus(int st) {
   currentStatus = st;
 }
 
+/**
+ * Fix Color LED is switched on/off in an intervall to act as an heartbeat.
+ * @param intervall in ms teh LED should blink
+ **/ 
 void DeviceStatus::blinkCycle(int interval) {
   if(millis() > (lastCycle + interval) || millis() < lastCycle) {
       lastCycle = millis();
