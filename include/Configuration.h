@@ -18,6 +18,7 @@ public:
     //Other Sutff
     const int HDLC_HEADER_SIZE = 13;
 
+    //Keys to decrypt HDLC frames send out by the SmartMeter. This are usually provided by your electricity supplier
     //Decryption Key
     uint8_t AUTH_KEY[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     //Zähler 1

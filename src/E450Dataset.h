@@ -21,7 +21,7 @@ public:
     E450Dataset(uint8_t encKey[16]);
     bool decrypt(uint8_t rawData[], uint16_t length);
     uint8_t decryptedData[120];
-    uint8_t dataLengh;
+    uint8_t dataLength;
 
     void getSerial(char serial[8]);
     String getDataString();

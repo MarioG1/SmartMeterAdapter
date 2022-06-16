@@ -9,6 +9,10 @@
 #include "E450Dataset.h"
 #include "Configuration.h"
 
+/**
+ * Class to decrypt and given dataset send out by the SmartMeter
+ * @param ENC_KEY Key used to decrypt the data
+ **/
 E450Dataset::E450Dataset(uint8_t ENC_KEY[16]) {
     Configuration config;
     memcpy(&this->encKey[0], &ENC_KEY[0], 16);
@@ -17,9 +21,15 @@ E450Dataset::E450Dataset(uint8_t ENC_KEY[16]) {
     this->ei_last = 0;
 }
 
-bool E450Dataset::decrypt(uint8_t imputData[120], uint16_t length) {
+/**
+ * Decrypts an dataset received from smartmeter
+ * @param inputData Data to decrypt
+ * @param length Length of input data in bytes. Just for logging/debugging
+ * @return true on success
+ **/
+bool E450Dataset::decrypt(uint8_t inputData[120], uint16_t length) {
     //Remove HDLC Header since its not needed anymore
-    memcpy(&this->rawData[0], &imputData[config.HDLC_HEADER_SIZE], length-config.HDLC_HEADER_SIZE);
+    memcpy(&this->rawData[0], &inputData[config.HDLC_HEADER_SIZE], length-config.HDLC_HEADER_SIZE);
 
     uint8_t iv[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t aad[17] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -34,12 +44,12 @@ bool E450Dataset::decrypt(uint8_t imputData[120], uint16_t length) {
     gcmDec.setIV(iv, sizeof(iv));
     gcmDec.addAuthData(aad, sizeof(aad));
 
-    //Lengh of the Encrypted Data
-    this->dataLengh = this->rawData[8]-17;
+    //Length of the Encrypted Data
+    this->dataLength = this->rawData[8]-17;
 
     #ifdef LOGGING
         Serial.println("ImputData:");
-        this->sendBytes(imputData,length);
+        this->sendBytes(inputData,length);
 
         Serial.println("RawData:");
         this->sendBytes(this->rawData,length-config.HDLC_HEADER_SIZE);
@@ -57,35 +67,61 @@ bool E450Dataset::decrypt(uint8_t imputData[120], uint16_t length) {
         this->sendBytes(tag, 12);
     #endif
 
-    // Ciphertext ist ab Index 14
-    gcmDec.decrypt(this->decryptedData, &this->rawData[14], this->dataLengh);
+    // Ciphertext is located after Byte 14
+    gcmDec.decrypt(this->decryptedData, &this->rawData[14], this->dataLength);
     return gcmDec.checkTag(tag, sizeof(tag));
 }
 
+/**
+ * Returns the initialization vector (IV) from the dataset
+ * The IV is not returned by the function, instead the IV is written in the iv parameter
+ * @param iv The IV will be written into this variable, has to be an array of 12Byte
+ **/
 void E450Dataset::getIv(uint8_t iv[12]) {
     // First 0-7 Bytes (Systm Title)
     memcpy(&iv[0], &this->rawData[0], 8);
-    // Byte 10-13 v(=nonce). INFO: Nonce wird bei jedem Paket um 1 größer (=increment counter)
+    // Byte 10-13 v(=nonce). INFO: Nonce increased by 1 for each send dataset (=increment counter)
     memcpy(&iv[8], &this->rawData[10], 4);
 }
 
+/**
+ * Returns the Additional Authenticated Data (AAD) from the dataset
+ * The AAD is not returned by the function, instead the AAD is written in the iv parameter
+ * @param aad The AAD will be written into this variable, has to be an array of 17Byte
+ **/
 void E450Dataset::getAad(uint8_t aad[17]) {
-    // Byte 9 (Securty Byte)
+    // Byte 9 (Security Byte)
     memcpy(&aad[0], &this->rawData[9], 1);
     // Auth KEY
     memcpy(&aad[1], &config.AUTH_KEY[0], 16);
 }
 
+
+/**
+ * Returns the Tag from the dataset
+ * The Tag is not returned by the function, instead the Tag is written in the iv parameter
+ * @param aad The Tag will be written into this variable, has to be an array of 12Byte
+ **/
 void E450Dataset::getTag(uint8_t tag[12]) {
-    // Last 12 Bytes (Byte 8 countains the amount of Bytes after Byte 12 (Encrypted Date + Tag))
+    // Last 12 Bytes (Byte 8 contains the amount of Bytes after Byte 12 (Encrypted Date + Tag))
     memcpy(&tag[0], &this->rawData[(this->rawData[8]-3)], 12);
 }
 
 
+/**
+ * Returns the serialnumber of the smartmeter which has send the dataset
+ * The serial is not returned by the function, instead the serial is written in the serial parameter
+ * @param serial The serial will be written into this variable, has to be an char array of 8Byte
+ **/
 void E450Dataset::getSerial(char serial[8])  {
-    memcpy(&serial[0], &this->decryptedData[this->dataLengh-8], 8);
+    memcpy(&serial[0], &this->decryptedData[this->dataLength-8], 8);
 }
 
+/**
+ * Returns and string which contains all relevant data from the decrypted dataset.
+ * The string is already formatted to be send to and InfluxDB backed to be stored. 
+ * Its not that universal I now. Feel free to modify the function to your needs.
+ **/ 
 String E450Dataset::getDataString(){
     char serial[8];
 
@@ -127,7 +163,10 @@ String E450Dataset::getDataString(){
                 +",EnergyImportDelta="+String(ei_diff)+",EnergyExportDelta="+String(ee_diff);;
 }
 
-//Debug Function
+/**
+ * Debug function to send out the datased on the serial interface.
+ * When used on an ArduinoUno it will be send out on the virtual com port.
+ **/ 
 void E450Dataset::sendBytes(uint8_t* bytes, unsigned int count){
     for(unsigned int i = 0; i < count; i++) {
       Serial.print(bytes[i], HEX);
