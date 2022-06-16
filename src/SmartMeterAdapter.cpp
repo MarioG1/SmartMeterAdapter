@@ -19,10 +19,10 @@ InfluxDB db(config.INFLUXDB_HOST, config.INFLUXDB_PORT, config.INFLUXDB_DBNAME, 
 
 unsigned long lastCycle = 0;
 
-//SofwareSerial
+//SofwareSerial op Pins 10 and 11
 SoftwareSerial sofwareSerial1(10, 11);
 
-//HDLC
+//HDLC => I noticed later that it is not really HDLC, just looks like it in the first place
 void send_character(uint8_t data);
 void hdlc_frame_handler_0(uint8_t *data, uint16_t length);
 void hdlc_frame_handler_1(uint8_t *data, uint16_t length);
@@ -33,6 +33,10 @@ Arduhdlc hdlc1(&send_character, &hdlc_frame_handler_1, MAX_HDLC_FRAME_LENGTH);
 E450Dataset dataset0(config.ENC_KEY_0);
 E450Dataset dataset1(config.ENC_KEY_1);
 
+/**
+ * Connect to the configured WiFI network.
+ * The function will not return until a connection to the WiFi network is established.
+ **/ 
 void wifiConnect() {
   #ifdef LOGGING
     Serial.print("WiFi Firmware Version: ");
@@ -41,6 +45,7 @@ void wifiConnect() {
 
   dstatus.setStatus(DeviceStatus::WIFI_CONNECT);
 
+  // Wait until the WiFi module is booted and responses to commands
   while(WiFi.status() == WL_NO_MODULE) {
     #ifdef LOGGING
       Serial.println("No connection to WiFI module");
@@ -53,10 +58,11 @@ void wifiConnect() {
     delay(500);
   }
 
-  //Set Wifi Connection Timeeout to 15s
+  // Set WiFi Connection Timeout to 15s
   WiFi.setTimeout(10*1000);
   WiFi.noLowPowerMode();
 
+  // If WiFi is not connected try to connect...
   while (WiFi.status() != WL_CONNECTED) {
     dstatus.setStatus(DeviceStatus::WIFI_CONNECT);
 
@@ -85,12 +91,10 @@ void wifiConnect() {
   }
 }
 
+/**
+ * Checks if the WiFi is connected and initializes and connect if not.
+ **/ 
 void checkWifiStatus() {
-  #ifdef LOGGING
-    Serial.print("Free Memory: ");
-    Serial.println(freeMemory());
-  #endif
-
   if(WiFi.status() != WL_CONNECTED) {
     #ifdef LOGGING
         Serial.println("WiFi Connection Lost. Reconnecting...");
@@ -103,6 +107,11 @@ void checkWifiStatus() {
   }
 }
 
+/**
+ * Sends binary data formated as HEX out of Serail 0 (USB)
+ * @param bytes Data to send
+ * @param count Length of data to send
+ **/ 
 void sendBytes(uint8_t* bytes, unsigned int count){
     for(unsigned int i = 0; i < count; i++) {
       Serial.print(bytes[i], HEX);
@@ -110,12 +119,18 @@ void sendBytes(uint8_t* bytes, unsigned int count){
     }
 }
 
-/* Function to send out one 8bit character */
+/** 
+ * Function to send out one 8bit character on Serial 0 (USB)
+ **/
 void send_character(uint8_t data) {
     Serial.print((char)data);
 }
 
-/* Frame handler function. What to do with received data? */
+/**
+ * HDLC frame handler for serial 1 (SmartMeter 0). Called when one HDLC frame was received
+ * @param data data of the received HDLC frame
+ * @param length length of the HDLC frame
+ **/ 
 void hdlc_frame_handler_0(uint8_t *data, uint16_t length) {
   if(!dataset0.decrypt(data, length)) {
       Serial.println("Landis: DecryptAndExtractValues: Encryption Tag Check error \r\n");
@@ -132,6 +147,11 @@ void hdlc_frame_handler_0(uint8_t *data, uint16_t length) {
   }
 }
 
+/**
+ * HDLC frame handler for serial 2 (SmartMeter 1). Called when one HDLC frame was received
+ * @param data data of the received HDLC frame
+ * @param length length of the HDLC frame
+ **/ 
 void hdlc_frame_handler_1(uint8_t *data, uint16_t length) {
   if(!dataset1.decrypt(data, length)) {
       Serial.println("Landis: DecryptAndExtractValues: Encryption Tag Check error \r\n");
@@ -155,14 +175,17 @@ void hdlc_frame_handler_1(uint8_t *data, uint16_t length) {
 void setup() {
   dstatus.Init();
 
-  //INIT SERIAL DEBUG
+  //Init Serial 0 for debug output to the PC
   Serial.begin(19200, SERIAL_8E1);
+
+  //Init Serial 1 for Smart Meter communication
   Serial1.begin(2400, SERIAL_8E1);
 
   #ifdef LOGGING
     Serial.println("Startup...");
   #endif
 
+  //Init Serial 2 (Sofware Serial) for Smart Meter communication
   sofwareSerial1.begin(2400);
   sofwareSerial1.listen();
  
